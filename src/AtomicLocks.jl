@@ -159,8 +159,9 @@ This lock is designed for managing data that requires very short but frequent ac
 # Example
 ```julia
 rw_lock = ReadWriteLock()  # Creates a new read-write lock
-"""
-""" ReadWriteLock
+```
+
+    ReadWriteLock
 
 A lock that allows one write operation at a time, while multiple read operations can be performed concurrently. This is useful for data management situations with extremely short but frequent access times.
 
@@ -275,7 +276,7 @@ struct RWLTrace
     all::Int64
     point_id::Int64
 end
-Base.show(io::IO, trace::RWLTrace) = print(io, "(", trace.thread, ",", trace.OP, ",", trace.all, ")")
+Base.show(io::IO, trace::RWLTrace) = print(io, "(", trace.thread, ",", trace.OP, ",", trace.all,",", trace.point_id, ")")
 
 struct RWLDebugError <: Exception
     index::Int64
@@ -297,8 +298,9 @@ struct ReadWriteLockDebug
     trace::Vector{RWLTrace}
     lock::SpinLock
     timelag::Int64
+    ltrace::Int64
     function ReadWriteLockDebug(;traces::Int64=100,timelag::Int64=1000000000,print::Bool=false,location="")
-        rwl = new(Threads.Atomic{Int64}(0),Threads.Atomic{Int64}(0),Threads.Atomic{Int64}(0),Threads.Atomic{Int64}(0),atomic_add!(AtomicLocks.RWLCounter,1),Vector{RWLTrace}(undef,traces),SpinLock(),timelag)#,cr,cw,ReentrantLock())
+        rwl = new(Threads.Atomic{Int64}(0),Threads.Atomic{Int64}(0),Threads.Atomic{Int64}(0),Threads.Atomic{Int64}(0),atomic_add!(AtomicLocks.RWLCounter,1),Vector{RWLTrace}(undef,traces),SpinLock(),timelag,traces)#,cr,cw,ReentrantLock())
         if print
             println("Initialize ReadWriteLock $(rwl.index) at location: $location")
         end
@@ -316,7 +318,7 @@ export ReadWriteLockDebug
     ti = time_ns()
     this_tail = atomic_add!(rwl.tail,1) 
     a = atomic_add!(rwl.all,1)
-    rwl.trace[mod(a,100)+1] = RWLTrace(Threads.threadid(),1,a,id)
+    rwl.trace[mod(a,rwl.ltrace)+1] = RWLTrace(Threads.threadid(),1,a,id)
     unlock(rwl.lock)
     ii = 0
     while atomic_add!(rwl.head,0)<this_tail
@@ -324,11 +326,19 @@ export ReadWriteLockDebug
         ii += 1
         mod(ii,100)==0 && yield()
         if time_ns()-ti>rwl.timelag 
-            lock(rwl.lock)
+            #lock(rwl.lock)
             a = atomic_add!(rwl.all,1)
-            rwl.trace[mod(a,100)+1] = RWLTrace(Threads.threadid(),-1,a,id)
-            tr = copy(rwl.trace)
-            unlock(rwl.lock)
+            rwl.trace[mod(a,rwl.ltrace)+1] = RWLTrace(Threads.threadid(),-1,a,id)
+            ltrace = length(rwl.trace)
+            last_index = mod(a,rwl.ltrace)+1
+            tr = Vector{RWLTrace}(undef,min(ltrace,a+1))
+            if length(tr)==ltrace
+                tr[1:(ltrace-last_index)] .= rwl.trace[(last_index+1):ltrace]
+                tr[(ltrace-last_index+1):ltrace] .= rwl.trace[1:last_index]
+            else
+                tr .= rwl.trace[1:(a+1)]
+            end
+            #unlock(rwl.lock)
             throw(RWLDebugError(rwl.index, atomic_add!(rwl.head, 0), this_tail, atomic_add!(rwl.reads_count, 0), tr))
         end
     end
@@ -343,7 +353,7 @@ end
     this_tail = atomic_add!(rwl.tail,1) 
     #print("$this_tail, $(rwl.head[]), $(rwl.reads_count[])")
     a = atomic_add!(rwl.all,1)
-    rwl.trace[mod(a,100)+1] = RWLTrace(Threads.threadid(),3,a,id)
+    rwl.trace[mod(a,rwl.ltrace)+1] = RWLTrace(Threads.threadid(),3,a,id)
     unlock(rwl.lock)
     ii = 0
     while atomic_add!(rwl.head,0)<this_tail || atomic_add!(rwl.reads_count,0)>0
@@ -351,11 +361,19 @@ end
         ii += 1
         mod(ii,100)==0 && yield()
         if time_ns()-ti>rwl.timelag 
-            lock(rwl.lock)
+            #lock(rwl.lock)
             a = atomic_add!(rwl.all,1)
-            rwl.trace[mod(a,100)+1] = RWLTrace(Threads.threadid(),-3,a,id)
-            tr = copy(rwl.trace)
-            unlock(rwl.lock)
+            rwl.trace[mod(a,rwl.ltrace)+1] = RWLTrace(Threads.threadid(),-3,a,id)
+            ltrace = length(rwl.trace)
+            last_index = mod(a,rwl.ltrace)+1
+            tr = Vector{RWLTrace}(undef,min(ltrace,a+1))
+            if length(tr)==ltrace
+                    tr[1:(ltrace-last_index)] .= rwl.trace[(last_index+1):ltrace]
+                    tr[(ltrace-last_index+1):ltrace] .= rwl.trace[1:last_index]
+            else
+                tr .= rwl.trace[1:(a+1)]
+            end
+            #unlock(rwl.lock)
             throw(RWLDebugError(rwl.index, atomic_add!(rwl.head, 0), this_tail, atomic_add!(rwl.reads_count, 0), tr))
         end
     end
@@ -366,7 +384,7 @@ end
     lock(rwl.lock)
     atomic_sub!(rwl.reads_count,1)
     a = atomic_add!(rwl.all,1)
-    rwl.trace[mod(a,100)+1] = RWLTrace(Threads.threadid(),2,a,id)
+    rwl.trace[mod(a,rwl.ltrace)+1] = RWLTrace(Threads.threadid(),2,a,id)
     unlock(rwl.lock)
 
 end
@@ -375,7 +393,7 @@ end
     lock(rwl.lock)
     atomic_add!(rwl.head,1)
     a = atomic_add!(rwl.all,1)
-    rwl.trace[mod(a,100)+1] = RWLTrace(Threads.threadid(),4,a,id)
+    rwl.trace[mod(a,rwl.ltrace)+1] = RWLTrace(Threads.threadid(),4,a,id)
     unlock(rwl.lock)
 end
 

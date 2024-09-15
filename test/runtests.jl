@@ -87,7 +87,7 @@ using Base.Threads
     function test_read(_lock,ii)
         for i in 1:10
             readlock(_lock)
-            r = rand(1:70)/1000
+            r = rand(1:55)/1000
             sleep(r)
             readunlock(_lock)
         end
@@ -95,14 +95,14 @@ using Base.Threads
     function test_write(_lock,ii)
         for i in 1:10
             writelock(_lock)
-            r = rand(1:70)/1000
+            r = rand(1:55)/1000
             sleep(r)
             writeunlock(_lock)
         end
     end
 
     function test_read_write_lock_debug()
-        rwl = ReadWriteLockDebug(;timelag=50000000,print=true)
+        rwl = ReadWriteLockDebug(;traces = 10, timelag=50000000,print=true)
         println(typeof(rwl))
     
         # Start threads for read and write operations
