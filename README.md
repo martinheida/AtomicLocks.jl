@@ -1,6 +1,6 @@
 # AtomicLocks.jl
 
-`AtomicLocks.jl` is a Julia package that provides a set of thread-safe, atomic-based locks, including traditional read-write locks, FIFO locks, and advanced debug tools for identifying lock contention issues in multithreaded environments. The package is designed for data management scenarios where short but frequent access is required.
+`AtomicLocks.jl` is a Julia package that provides a set of thread-safe, atomic-based locks, including traditional read-write locks, FIFO locks, synchronization locks and advanced debug tools for identifying lock contention issues in multithreaded environments. The package is designed for data management scenarios where short but frequent access to data is required and the percentage of data access times is still low compared to the overall computation time.
 
 ## Features
 
