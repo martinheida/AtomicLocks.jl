@@ -61,7 +61,7 @@ end
             yield()
         end
     end
-    println("lock on thread $(Threads.threadid())")
+#    println("lock on thread $(Threads.threadid())")
 end
 
 @inline Base.unlock(bl::AtomicLock) = atomic_xchg!(bl.locked,false) 
