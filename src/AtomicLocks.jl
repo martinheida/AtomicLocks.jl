@@ -196,7 +196,7 @@ end
 @inline function readlock(rwl::ReadWriteLock,args...)
     this_tail = atomic_add!(rwl.tail,1) 
     ii = 0
-    while atomic_add!(rwl.head,0)!=this_tail
+    while atomic_add!(rwl.head,0)<this_tail
         active_wait(100)
         ii += 1
         mod(ii,100)==0 && yield()
@@ -208,7 +208,7 @@ end
 @inline function writelock(rwl::ReadWriteLock,args...)
     this_tail = atomic_add!(rwl.tail,1) 
     ii = 0
-    while atomic_add!(rwl.head,0)!=this_tail || atomic_add!(rwl.reads_count,0)>0
+    while atomic_add!(rwl.head,0)<this_tail || atomic_add!(rwl.reads_count,0)>0
         active_wait(100)
         ii += 1
         mod(ii,100)==0 && yield()
